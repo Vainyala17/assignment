@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "375495365013",
+    "project_id": "assignmentask-a1f17",
+    "storage_bucket": "assignmentask-a1f17.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:375495365013:android:0deddfbe7e7fb83962e69c",
+        "android_client_info": {
+          "package_name": "com.example.assignmentask"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqiF-3mduC7_wYUSHB50bU0lR62n8QyQY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
