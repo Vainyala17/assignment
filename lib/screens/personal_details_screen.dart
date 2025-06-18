@@ -2,25 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-
+import '../widgets/dropdown_state.dart';
 import 'fetch_data_screen.dart';
 
 class PersonalDetailsScreen extends StatefulWidget {
   final DocumentSnapshot? editUser;
-
   const PersonalDetailsScreen({Key? key, this.editUser}) : super(key: key);
-
   @override
   _PersonalDetailsScreenState createState() => _PersonalDetailsScreenState();
 }
 
 class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
+
   final _formKey = GlobalKey<FormState>();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Controllers
   final TextEditingController _mobileController = TextEditingController();
@@ -46,21 +43,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeAuth();
     _loadUserDataForEdit();
-  }
-
-  Future<void> _initializeAuth() async {
-    try {
-      User? currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        // Sign in anonymously if no user is logged in
-        await _auth.signInAnonymously();
-      }
-    } catch (e) {
-      // Silent error handling - just continue without showing error
-      print('Auth initialization: $e');
-    }
   }
 
   void _loadUserDataForEdit() {
@@ -182,78 +165,62 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     );
   }
 
-  Widget _buildPhotoSection() {
-    return Center(
-      child: Column(
-        children: [
-          Container(
-            height: 150,
-            width: 150,
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(75),
-              border: Border.all(color: Colors.grey[300]!, width: 2),
-            ),
-            child: _selectedImage != null
-                ? ClipRRect(
-              borderRadius: BorderRadius.circular(75),
-              child: Image.file(
-                _selectedImage!,
-                fit: BoxFit.cover,
-              ),
-            )
-                : _existingPhotoUrl != null
-                ? ClipRRect(
-              borderRadius: BorderRadius.circular(75),
-              child: Image.network(
-                _existingPhotoUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    Icons.person,
-                    size: 60,
-                    color: Colors.grey[400],
-                  );
-                },
-              ),
-            )
-                : Icon(
-              Icons.person,
-              size: 60,
-              color: Colors.grey[400],
-            ),
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Only PNG, JPEG files up to 500KB allowed',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-          ),
-          SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              ElevatedButton.icon(
-                onPressed: () => _pickImage(ImageSource.camera),
-                icon: Icon(Icons.camera_alt),
-                label: Text('Camera'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: () => _pickImage(ImageSource.gallery),
-                icon: Icon(Icons.photo_library),
-                label: Text('Gallery'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ],
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: EdgeInsets.only(left: 8, bottom: 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey[800],
+        ),
       ),
+    );
+  }
+
+  Widget _buildCard(List<Widget> children) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: children,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileField() {
+    return TextFormField(
+      controller: _mobileController,
+      keyboardType: TextInputType.phone,
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(10),
+      ],
+      decoration: InputDecoration(
+        labelText: 'Mobile Number *',
+        hintText: 'Enter 10-digit mobile number',
+        prefixIcon: Icon(Icons.phone),
+        helperText: 'Must start with 6, 7, 8, or 9',
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Mobile number is required';
+        }
+        if (value.length != 10) {
+          return 'Mobile number must be 10 digits';
+        }
+        if (!['9', '8', '7', '6'].contains(value[0])) {
+          return 'Mobile number must start with 6, 7, 8, or 9';
+        }
+        return null;
+      },
     );
   }
 
@@ -282,65 +249,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         if (!RegExp(r'^[a-zA-Z]').hasMatch(value)) {
           return 'Name must start with an alphabet';
         }
+        // Allow alphabets, spaces, dots, hyphens, and Roman numerals
         if (!RegExp(r'^[a-zA-Z\s\.\-IVXLCDM]+$').hasMatch(value)) {
           return 'Name can only contain letters, spaces, dots, hyphens, and Roman numerals';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildMobileField() {
-    return TextFormField(
-      controller: _mobileController,
-      keyboardType: TextInputType.phone,
-      inputFormatters: [
-        FilteringTextInputFormatter.digitsOnly,
-        LengthLimitingTextInputFormatter(10),
-      ],
-      decoration: InputDecoration(
-        labelText: 'Mobile Number *',
-        hintText: 'Enter 10-digit mobile number',
-        prefixIcon: Icon(Icons.phone),
-        helperText: 'Must start with 6, 7, 8, or 9',
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Mobile number is required';
-        }
-        if (value.length != 10) {
-          return 'Mobile number must be 10 digits';
-        }
-        int firstDigit = int.parse(value[0]);
-        if (firstDigit >= 0 && firstDigit <= 5) {
-          return 'Invalid mobile number. Must start with 6, 7, 8, or 9';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildEmailField() {
-    return TextFormField(
-      controller: _emailController,
-      keyboardType: TextInputType.emailAddress,
-      decoration: InputDecoration(
-        labelText: 'Email Address *',
-        hintText: 'Enter your email',
-        prefixIcon: Icon(Icons.email),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Email is required';
-        }
-        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-          return 'Enter a valid email address';
         }
         return null;
       },
@@ -453,9 +364,6 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       decoration: InputDecoration(
         labelText: 'State *',
         prefixIcon: Icon(Icons.location_on),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
       ),
       items: [
         'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
@@ -476,6 +384,30 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'State is required';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildEmailField() {
+    return TextFormField(
+      controller: _emailController,
+      keyboardType: TextInputType.emailAddress,
+      decoration: InputDecoration(
+        labelText: 'Email Address *',
+        hintText: 'Enter your email',
+        prefixIcon: Icon(Icons.email),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Email is required';
+        }
+        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+          return 'Enter a valid email address';
         }
         return null;
       },
@@ -600,6 +532,81 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     );
   }
 
+  Widget _buildPhotoSection() {
+    return Center(
+      child: Column(
+        children: [
+          Container(
+            height: 150,
+            width: 150,
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(75),
+              border: Border.all(color: Colors.grey[300]!, width: 2),
+            ),
+            child: _selectedImage != null
+                ? ClipRRect(
+              borderRadius: BorderRadius.circular(75),
+              child: Image.file(
+                _selectedImage!,
+                fit: BoxFit.cover,
+              ),
+            )
+                : _existingPhotoUrl != null
+                ? ClipRRect(
+              borderRadius: BorderRadius.circular(75),
+              child: Image.network(
+                _existingPhotoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(
+                    Icons.person,
+                    size: 60,
+                    color: Colors.grey[400],
+                  );
+                },
+              ),
+            )
+                : Icon(
+              Icons.person,
+              size: 60,
+              color: Colors.grey[400],
+            ),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Only PNG, JPEG files up to 500KB allowed',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () => _pickImage(ImageSource.camera),
+                icon: Icon(Icons.camera_alt),
+                label: Text('Camera'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _pickImage(ImageSource.gallery),
+                icon: Icon(Icons.photo_library),
+                label: Text('Gallery'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionButtons() {
     return Row(
       children: [
@@ -610,9 +617,6 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
             style: OutlinedButton.styleFrom(
               padding: EdgeInsets.symmetric(vertical: 16),
               side: BorderSide(color: Colors.grey[400]!),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
             ),
           ),
         ),
@@ -629,14 +633,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                 strokeWidth: 2,
               ),
             )
-                : Text(_isEditMode ? 'Update' : 'Submit'),
+                : Text('Submit'),
             style: ElevatedButton.styleFrom(
               padding: EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
             ),
           ),
         ),
@@ -657,11 +656,12 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         final File imageFile = File(image.path);
         final int fileSize = await imageFile.length();
 
-        if (fileSize > 500 * 1024) {
-          _showSnackBar('Image size should be less than 500 KB', isError: true);
+        if (fileSize > 500 * 1024) { // 100 KB
+          _showSnackBar('Image size should be less than 100 KB', isError: true);
           return;
         }
 
+        // Check file extension
         String extension = image.path.split('.').last.toLowerCase();
         if (!['png', 'jpg', 'jpeg'].contains(extension)) {
           _showSnackBar('Only PNG and JPEG files are allowed', isError: true);
@@ -673,7 +673,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         });
       }
     } catch (e) {
-      _showSnackBar('Error picking image', isError: true);
+      _showSnackBar('Error picking image: $e', isError: true);
     }
   }
 
@@ -682,7 +682,6 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       Navigator.pop(context);
       return;
     }
-
     _formKey.currentState?.reset();
     setState(() {
       _mobileController.clear();
@@ -715,52 +714,28 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     });
 
     try {
-      // Ensure user is authenticated
-      User? currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        await _auth.signInAnonymously();
-        currentUser = _auth.currentUser;
-      }
+      String? photoUrl;
 
-      String? photoUrl = _existingPhotoUrl;
-
-      // Upload photo if new image is selected
+      // Upload photo to Firebase Storage if selected
       if (_selectedImage != null) {
-        try {
-          final String fileName = 'user_${currentUser!.uid}_${DateTime.now().millisecondsSinceEpoch}';
-          final Reference storageRef = FirebaseStorage.instance
-              .ref()
-              .child('user_photos')
-              .child('$fileName.jpg');
+        final String fileName = DateTime.now().millisecondsSinceEpoch.toString();
+        final Reference storageRef = FirebaseStorage.instance
+            .ref()
+            .child('user_photos')
+            .child('$fileName.jpg');
 
-          final SettableMetadata metadata = SettableMetadata(
-            contentType: 'image/jpeg',
-            customMetadata: {
-              'userId': currentUser.uid,
-              'uploadTime': DateTime.now().toIso8601String(),
-            },
-          );
-
-          final UploadTask uploadTask = storageRef.putFile(_selectedImage!, metadata);
-          final TaskSnapshot snapshot = await uploadTask;
-          photoUrl = await snapshot.ref.getDownloadURL();
-        } catch (storageError) {
-          _showSnackBar('Error uploading photo', isError: true);
-          setState(() {
-            _isLoading = false;
-          });
-          return;
-        }
+        final UploadTask uploadTask = storageRef.putFile(_selectedImage!);
+        final TaskSnapshot snapshot = await uploadTask;
+        photoUrl = await snapshot.ref.getDownloadURL();
       }
 
       Map<String, dynamic> userData = {
-        'userId': currentUser!.uid,
         'mobile': _mobileController.text.trim(),
         'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
         'gender': _selectedGender,
-        'maritalStatus': _selectedMaritalStatus.isNotEmpty ? _selectedMaritalStatus : null,
+        'maritalStatus':  _selectedMaritalStatus.isNotEmpty ? _selectedMaritalStatus : null,
         'state': _selectedState,
+        'email': _emailController.text.trim(),
         'educationalQualification': _educationalQualification,
         'timestamp': FieldValue.serverTimestamp(),
         'createdAt': DateTime.now().toIso8601String(),
@@ -780,27 +755,18 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         userData['subject'] = _pgSubjectController.text.trim();
       }
 
-      if (_isEditMode) {
-        userData['updatedAt'] = DateTime.now().toIso8601String();
-        await _firestore.collection('users').doc(widget.editUser!.id).update(userData);
-        _showSnackBar('Data updated successfully!');
-        Navigator.pop(context, true); // Return true to indicate update
-      } else {
-        await _firestore.collection('users').add(userData);
-        _showSnackBar('Data saved successfully!');
-        _clearForm();
+      await _firestore.collection('users').add(userData);
 
-        // Navigate to FetchDataScr
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => FetchDataScreen(),
-          ),
-        );
-      }
-
+      _showSnackBar('Data saved successfully!');
+      _clearForm();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => FetchDataScreen(),
+        ),
+      );
     } catch (e) {
-      _showSnackBar('Error saving data', isError: true);
+      _showSnackBar('Error saving data: $e', isError: true);
     } finally {
       setState(() {
         _isLoading = false;

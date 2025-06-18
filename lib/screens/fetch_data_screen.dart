@@ -2,7 +2,6 @@ import 'package:assignment_task/screens/personal_details_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 
@@ -380,7 +379,11 @@ class _FetchDataScreenState extends State<FetchDataScreen> {
 
             if (userData['educationalQualification'] == 'Post Graduate' &&
                 userData['subject'] != null) ...[
-              _buildInfoRow(Icons.book, 'Subject', userData['subject'] ?? 'N/A'),
+              _buildInfoRow(
+                Icons.book,
+                'Subject',
+                _getSubjectString(userData['subject']),
+              ),
             ],
 
             SizedBox(height: 12),
@@ -665,7 +668,24 @@ class _FetchDataScreenState extends State<FetchDataScreen> {
       return 'Unknown';
     }
   }
+  String _getSubjectString(dynamic subject) {
+    if (subject == null) return 'N/A';
 
+    if (subject is List) {
+      // Filter out null values and convert to strings
+      final validSubjects = subject
+          .where((item) => item != null && item.toString().trim().isNotEmpty)
+          .map((item) => item.toString())
+          .toList();
+      return validSubjects.isNotEmpty ? validSubjects.join(', ') : 'N/A';
+    }
+
+    if (subject is String) {
+      return subject.trim().isNotEmpty ? subject : 'N/A';
+    }
+
+    return subject.toString();
+  }
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
