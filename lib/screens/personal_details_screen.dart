@@ -165,33 +165,6 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: EdgeInsets.only(left: 8, bottom: 8),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Colors.grey[800],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCard(List<Widget> children) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: children,
-        ),
-      ),
-    );
-  }
-
   Widget _buildMobileField() {
     return TextFormField(
       controller: _mobileController,
@@ -575,7 +548,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
           ),
           SizedBox(height: 16),
           Text(
-            'Only PNG, JPEG files up to 500KB allowed',
+            'Only PNG, JPEG files up to 100KB allowed',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
           SizedBox(height: 16),
@@ -656,7 +629,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         final File imageFile = File(image.path);
         final int fileSize = await imageFile.length();
 
-        if (fileSize > 500 * 1024) { // 100 KB
+        if (fileSize > 500 * 1024) { // 500 KB
           _showSnackBar('Image size should be less than 100 KB', isError: true);
           return;
         }
@@ -703,7 +676,6 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-
     if (_selectedGender.isEmpty) {
       _showSnackBar('Please select gender', isError: true);
       return;
@@ -718,22 +690,53 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
       // Upload photo to Firebase Storage if selected
       if (_selectedImage != null) {
-        final String fileName = DateTime.now().millisecondsSinceEpoch.toString();
-        final Reference storageRef = FirebaseStorage.instance
-            .ref()
-            .child('user_photos')
-            .child('$fileName.jpg');
+        try {
+          final String fileName = '${_mobileController.text.trim()}_${DateTime.now().millisecondsSinceEpoch}';
+          final String extension = _selectedImage!.path.split('.').last.toLowerCase();
 
-        final UploadTask uploadTask = storageRef.putFile(_selectedImage!);
-        final TaskSnapshot snapshot = await uploadTask;
-        photoUrl = await snapshot.ref.getDownloadURL();
+          // Create storage reference with proper path
+          final Reference storageRef = FirebaseStorage.instance
+              .ref()
+              .child('user_photos')
+              .child('$fileName.$extension');
+
+          // Set metadata for better handling
+          final SettableMetadata metadata = SettableMetadata(
+            contentType: extension == 'png' ? 'image/png' : 'image/jpeg',
+            customMetadata: {
+              'uploadedBy': _mobileController.text.trim(),
+              'uploadedAt': DateTime.now().toIso8601String(),
+            },
+          );
+
+          // Upload the file with metadata
+          final UploadTask uploadTask = storageRef.putFile(_selectedImage!, metadata);
+
+          // Wait for upload to complete
+          final TaskSnapshot snapshot = await uploadTask.whenComplete(() {});
+          await snapshot.ref.getMetadata();
+
+          // Get the download URL
+          photoUrl = await snapshot.ref.getDownloadURL();
+
+          print('Image uploaded successfully. URL: $photoUrl');
+
+        } catch (uploadError) {
+          print('Image upload error: $uploadError');
+          _showSnackBar('Failed to upload image: ${uploadError.toString()}', isError: true);
+          setState(() {
+            _isLoading = false;
+          });
+          return;
+        }
       }
 
+      // Prepare user data
       Map<String, dynamic> userData = {
         'mobile': _mobileController.text.trim(),
         'name': _nameController.text.trim(),
         'gender': _selectedGender,
-        'maritalStatus':  _selectedMaritalStatus.isNotEmpty ? _selectedMaritalStatus : null,
+        'maritalStatus': _selectedMaritalStatus.isNotEmpty ? _selectedMaritalStatus : null,
         'state': _selectedState,
         'email': _emailController.text.trim(),
         'educationalQualification': _educationalQualification,
@@ -741,10 +744,14 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         'createdAt': DateTime.now().toIso8601String(),
       };
 
+      // Add photo URL if available
       if (photoUrl != null) {
         userData['photoUrl'] = photoUrl;
+      } else if (_existingPhotoUrl != null && _isEditMode) {
+        userData['photoUrl'] = _existingPhotoUrl;
       }
 
+      // Add subjects based on qualification
       if (_educationalQualification == 'Graduate') {
         userData['subjects'] = {
           'subject1': _subject1Controller.text.trim(),
@@ -755,9 +762,15 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         userData['subject'] = _pgSubjectController.text.trim();
       }
 
-      await _firestore.collection('users').add(userData);
+      // Save to Firestore
+      if (_isEditMode && widget.editUser != null) {
+        await _firestore.collection('users').doc(widget.editUser!.id).update(userData);
+        _showSnackBar('Data updated successfully!');
+      } else {
+        await _firestore.collection('users').add(userData);
+        _showSnackBar('Data saved successfully!');
+      }
 
-      _showSnackBar('Data saved successfully!');
       _clearForm();
       Navigator.pushReplacement(
         context,
@@ -765,8 +778,10 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
           builder: (context) => FetchDataScreen(),
         ),
       );
+
     } catch (e) {
-      _showSnackBar('Error saving data: $e', isError: true);
+      print('Form submission error: $e');
+      _showSnackBar('Error saving data: ${e.toString()}', isError: true);
     } finally {
       setState(() {
         _isLoading = false;
