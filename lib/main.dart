@@ -16,7 +16,6 @@ void main() async {
     print("🔥 DEBUG TOKEN: $token");
   });
 
-
   runApp(MyApp());
 }
 
