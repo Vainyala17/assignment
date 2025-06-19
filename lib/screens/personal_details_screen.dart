@@ -20,7 +20,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Controllers
-  final TextEditingController _mobleileControlr = TextEditingController();
+  final TextEditingController _mobileController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _subject1Controller = TextEditingController();
